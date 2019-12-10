@@ -6,7 +6,7 @@ from torchvision import models
 class Conv2D_BN_activa(nn.Module):
     def __init__(
             self, in_channels, out_channels, kernel_size, stride, padding=0,
-            dilation=1, if_bn=False, activation='relu', bias=None, initializer=None, transpose=False
+            dilation=1, if_bn=True, activation='relu', bias=None, initializer=None, transpose=False
     ):
         super(Conv2D_BN_activa, self).__init__()
         if transpose:
@@ -113,8 +113,7 @@ class ImageDecBlock(nn.Module):
 class CencN(nn.Module):
     def __init__(self):
         super(CencN, self).__init__()
-        backbone_model = models.vgg16_bn(pretrained=False)
-        backbone_model.load_state_dict(torch.load('./vgg16_bn-6c64b313.pth'))
+        backbone_model = models.vgg16_bn(pretrained=True)
         backbone_model_list = list(backbone_model.features.children())
         self.backbone_1 = nn.Sequential(*backbone_model_list[0:7])
         self.backbone_2 = nn.Sequential(*backbone_model_list[7:14])
@@ -153,7 +152,7 @@ class GdecN(nn.Module):
         self.block_4_conv_transpose = Conv2D_BN_activa(32, 32, 4, 2, 1, transpose=True)
 
         self.block_5_conv_1 = Conv2D_BN_activa(32+64, 64, 4, 2, 1, transpose=True)
-        self.block_5_conv_2 = Conv2D_BN_activa(64, 1, 5, 1, 2, activation=None)
+        self.block_5_conv_2 = Conv2D_BN_activa(64, 1, 5, 1, 2, activation=None, if_bn=False)
 
         self.sigmoid_layer = nn.Sigmoid()
 

@@ -11,5 +11,8 @@ class Config(object):
         self.batch_size = 8
         self.batch_size_test = 1
         self.preproc = {'resize': (384, 512), 'random_hsi': 0.0, 'hflip': True, 'vflip': True}
-        self.normalization_mean = (0, 0, 0)
-        self.normalization_std = (1, 1, 1)
+        self.normalization_mean, self.normalization_std = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+        self.num_val_coco = 1000
+        self.losses_train = []
+        self.losses_validate_coco = []
+        self.losses_validate_sir2 = []

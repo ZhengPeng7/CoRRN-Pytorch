@@ -109,6 +109,7 @@ class ImageTransformer(object):
 class DataLoaderTrain(data.Dataset):
     def __init__(self, config):
         self.paths_r, self.paths_b, self.paths_m = get_paths_coco(config.dir_coco)  # get_paths_sir2(config.dir_sir2)
+        self.paths_r, self.paths_b, self.paths_m = self.paths_r[config.num_val_coco:], self.paths_b[config.num_val_coco:], self.paths_m[config.num_val_coco:]
         self.data_len = len(self.paths_b)
 
         self.image_size = config.preproc['resize'] if 'resize' in config.preproc else (96, 128)
@@ -181,12 +182,16 @@ class DataLoaderTrain(data.Dataset):
 
 
 class DataLoaderValidate(data.Dataset):
-    def __init__(self, config):
-        self.paths_r, self.paths_b, self.paths_m = get_paths_sir2(config.dir_sir2)
-        self.paths_rbm = list(zip(self.paths_r, self.paths_b, self.paths_m))
-        shuffle(self.paths_rbm)
+    def __init__(self, config, dataset='coco'):
+        if dataset == 'coco':
+            self.paths_r, self.paths_b, self.paths_m = get_paths_coco(config.dir_coco)
+            self.paths_rbm = list(zip(self.paths_r, self.paths_b, self.paths_m))[:config.num_val_coco]
+        elif dataset == 'sir2':
+            self.paths_r, self.paths_b, self.paths_m = get_paths_sir2(config.dir_sir2)
+            self.paths_rbm = list(zip(self.paths_r, self.paths_b, self.paths_m))[:]
+        # shuffle(self.paths_rbm)
         self.paths_r, self.paths_b, self.paths_m = zip(*self.paths_rbm)
-        self.data_len = 10
+        self.data_len = len(self.paths_r)
         self.image_size = (384, 512)
 
         self.transformer_resize = transforms.Resize(self.image_size)
@@ -194,10 +199,30 @@ class DataLoaderValidate(data.Dataset):
         self.transformer_norm = transforms.Normalize(config.normalization_mean, config.normalization_std)
 
         self.images_mbgr = []
+        self.load_all = self.data_len < 500
 
-        for i in range(self.data_len):
-            # No augmentation on g and b
-            path_r, path_b, path_m = self.paths_r[i], self.paths_b[i], self.paths_m[i]
+        if self.load_all:
+            for i in range(self.data_len):
+                # No augmentation on g and b
+                path_r, path_b, path_m = self.paths_r[i], self.paths_b[i], self.paths_m[i]
+
+                image_m = Image.fromarray(io.imread(path_m).astype(np.uint8)).convert('RGB')
+                image_b = Image.fromarray(io.imread(path_b).astype(np.uint8)).convert('RGB')
+                image_r = Image.fromarray(io.imread(path_r).astype(np.uint8)).convert('RGB')
+                image_g = Image.fromarray(gradient(io.imread(path_b, as_gray=True)))
+
+                image_m = self.transformer_resize(image_m)
+                image_b = self.transformer_resize(image_b)
+                image_r = self.transformer_resize(image_r)
+                image_g = self.transformer_resize(image_g)
+
+                self.images_mbgr.append([image_m, image_b, image_g, image_r])
+
+    def __getitem__(self, index):
+        if self.load_all:
+            image_m, image_b, image_g, image_r = self.images_mbgr[index]
+        else:
+            path_r, path_b, path_m = self.paths_r[index], self.paths_b[index], self.paths_m[index]
 
             image_m = Image.fromarray(io.imread(path_m).astype(np.uint8)).convert('RGB')
             image_b = Image.fromarray(io.imread(path_b).astype(np.uint8)).convert('RGB')
@@ -209,10 +234,6 @@ class DataLoaderValidate(data.Dataset):
             image_r = self.transformer_resize(image_r)
             image_g = self.transformer_resize(image_g)
 
-            self.images_mbgr.append([image_m, image_b, image_g, image_r])
-
-    def __getitem__(self, index):
-        image_m, image_b, image_g, image_r = self.images_mbgr[index]
         image_m = self.transformer_norm(self.transformer_image2tensor(image_m)).float().cuda()
         image_b = self.transformer_norm(self.transformer_image2tensor(image_b)).float().cuda()
         image_r = self.transformer_norm(self.transformer_image2tensor(image_r)).float().cuda()
